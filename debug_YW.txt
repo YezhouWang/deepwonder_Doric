@@ -1,0 +1,7 @@
+conda activate deepwonder_env
+cd /mnt/d/a_job/Doric/Deepwonder/DeepWonder/
+
+
+new env for training (python3.8):
+conda activate deepwonder_gpu
+
