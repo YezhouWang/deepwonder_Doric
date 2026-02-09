@@ -1,0 +1,78 @@
+1. test_rmbg_on_synthetic.py: first frame is gray, 2-100 is white:
+import numpy as np
+import torch
+import tifffile as tiff
+
+from DWonder.RMBG.network import Network_3D_Unet
+from DWonder.WF2NoBG_FFD import wf2nobg_ffd
+
+# -----------------------------
+# paths
+# -----------------------------
+input_path = r"datasets/train_RMBG1/Input/mov_w_bg.tiff"
+gt_path    = r"datasets/train_RMBG1/GT/mov_wo_bg.tiff"
+# model_path = r"RMBG_pth/train_RMBG1_dn4_fm32_202602031938/E_02_Iter_4000.pth"
+model_path = r"RMBG_pth/result_demo/E_30_Iter_4009.pth" # deepwonder demo model
+
+# -----------------------------
+# load data
+# -----------------------------
+inp = tiff.imread(input_path).astype(np.float32)
+gt  = tiff.imread(gt_path).astype(np.float32)
+
+print("Original Input:", inp.shape, inp.dtype)
+print("Original GT   :", gt.shape, gt.dtype)
+
+# -----------------------------
+# keep first 100 frames only
+# -----------------------------
+N_FRAMES = 100
+inp = inp[:N_FRAMES]
+gt  = gt[:N_FRAMES]
+
+print("Trimmed Input:", inp.shape)
+print("Trimmed GT   :", gt.shape)
+
+# -----------------------------
+# normalize
+# -----------------------------
+inp = inp / (inp.max() + 1e-8)
+gt  = gt / (gt.max() + 1e-8)
+
+# -----------------------------
+# load RMBG model
+# -----------------------------
+net = Network_3D_Unet(
+    in_channels=4,
+    out_channels=4,
+    f_maps=32,
+    final_sigmoid=True
+)
+
+state_dict = torch.load(model_path, map_location="cpu")
+net.load_state_dict(state_dict)
+net.eval()
+
+# -----------------------------
+# RMBG inference
+# -----------------------------
+out = wf2nobg_ffd(
+    net,
+    inp,
+    if_use_GPU=False,
+    RMBG_GPU="0",
+    RMBG_batch_size=1,
+    RMBG_img_w=128,
+    RMBG_img_h=128,
+    RMBG_img_s=64,      # FIX: <= 100
+    RMBG_gap_w=96,
+    RMBG_gap_h=96,
+    RMBG_gap_s=32,      # FIX: < img_s
+    RMBG_normalize_factor=1
+)
+
+# -----------------------------
+# save output
+# -----------------------------
+tiff.imwrite("mov_w_bg_RMBG_pred_100frames_demo.tiff", out.astype(np.float32))
+print("Saved: mov_w_bg_RMBG_pred_100frames.tiff")
